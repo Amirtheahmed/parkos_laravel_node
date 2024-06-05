@@ -65,7 +65,7 @@ class ReservationControllerTest extends TestCase
 
         $response = $this->actingAs($user)->delete("api/reservations/{$reservation->id}");
 
-        $response->assertNoContent();
+        $response->assertOk();
         $this->assertSoftDeleted('reservations', ['id' => $reservation->id]);
     }
 
