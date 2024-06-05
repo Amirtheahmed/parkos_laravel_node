@@ -3,10 +3,13 @@
 namespace Tests\Unit;
 
 use App\Enums\PaymentStatusEnum;
+use App\Events\ReservationStatusUpdated;
 use App\Models\Reservation;
+use App\Observers\ReservationObserver;
 use App\Repositories\EloquentReservationRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Event;
+use Mockery;
 use Tests\TestCase;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -156,4 +159,23 @@ class ReservationRepositoryTest extends TestCase
             $this->assertModelMissing($reservation);
         }
     }
+
+    // Example of a Unit Test for the ReservationObserver
+    public function test_dispatches_event_on_payment_status_change_to_paid()
+    {
+        $reservation = Mockery::mock(Reservation::class)->makePartial();
+        $reservation->payment_status = 'paid';
+
+        $reservation->shouldReceive('isDirty')
+            ->with('payment_status')
+            ->andReturn(true);
+
+        Event::fake();
+
+        $observer = new ReservationObserver();
+        $observer->updated($reservation);
+
+        Event::assertDispatched(ReservationStatusUpdated::class);
+    }
+
 }
