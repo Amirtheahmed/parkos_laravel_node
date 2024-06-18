@@ -2,11 +2,16 @@
 
 namespace Feature;
 
+use App\Enums\PaymentStatusEnum;
+use App\Events\ReservationStatusUpdated;
 use App\Jobs\SendReservationConfirmation;
 use App\Models\Reservation;
 use App\Models\User;
+use App\Observers\ReservationObserver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
+use Mockery;
 use Tests\TestCase;
 
 class ReservationControllerTest extends TestCase
@@ -27,12 +32,26 @@ class ReservationControllerTest extends TestCase
     public function test_create_reservation()
     {
         $user = User::factory()->create();
-        $reservationData = Reservation::factory()->make()->toArray();
+        $reservationData = [
+            'code'      => 'XRP123456',
+            'name'      => 'John Doe',
+            'email'     => 'john@example.com',
+            'arrival'   => now(),
+            'departure' => now()->addDays(1),
+            'status'    => PaymentStatusEnum::PAID->value
+        ];
 
         $response = $this->actingAs($user)->post('api/reservations', $reservationData);
 
         $response->assertCreated();
-        $this->assertDatabaseHas('reservations', $reservationData);
+        $this->assertDatabaseHas('reservations', [
+            'reservation_code' => $reservationData['code'],
+            'customer_name'    => $reservationData['name'],
+            'customer_email'   => $reservationData['email'],
+            'arrival_date'     => $reservationData['arrival'],
+            'departure_date'   => $reservationData['departure'],
+            'payment_status'   => $reservationData['status'],
+        ]);
     }
 
     public function test_show_reservation()
@@ -43,19 +62,28 @@ class ReservationControllerTest extends TestCase
         $response = $this->actingAs($user)->get("api/reservations/{$reservation->id}");
 
         $response->assertOk();
-        $response->assertJsonFragment($reservation->toArray());
+        $response->assertJsonFragment([
+            'code'      => $reservation->reservation_code,
+            'name'      => $reservation->customer_name,
+            'email'     => $reservation->customer_email,
+            'arrival'   => $reservation->arrival_date,
+            'departure' => $reservation->departure_date,
+            'status'    => $reservation->payment_status->name
+        ]);
     }
 
     public function test_update_reservation()
     {
         $user = User::factory()->create();
         $reservation = Reservation::factory()->create();
-        $updatedData = ['customer_name' => 'Updated Name'];
+        $updatedData = ['name' => 'Updated Name'];
 
-        $response = $this->actingAs($user)->put("api/reservations/{$reservation->id}", $updatedData);
+        $response = $this->actingAs($user)->post("api/reservations/{$reservation->id}", $updatedData);
 
         $response->assertOk();
-        $this->assertDatabaseHas('reservations', $updatedData);
+        $this->assertDatabaseHas('reservations', [
+            'customer_name' => $updatedData['name']
+        ]);
     }
 
     public function test_delete_reservation()
@@ -71,14 +99,20 @@ class ReservationControllerTest extends TestCase
 
     public function test_reservation_status_update_triggers_event()
     {
-        $reservation = Reservation::factory()->create(['payment_status' => 'pending']);
+        $reservation = Reservation::factory()->create(['payment_status' => PaymentStatusEnum::PENDING->value]);
 
-        $response = $this->patch(route('reservations.update', $reservation->id), [
-            'payment_status' => 'paid'
+        Queue::fake();
+        Event::fake([
+            ReservationStatusUpdated::class
+        ]);
+
+        $response = $this->post(route('reservations.update', $reservation->id), [
+            'status' => PaymentStatusEnum::PAID->value
         ]);
 
         $response->assertOk();
-        Queue::assertPushed(SendReservationConfirmation::class);
+
+        Event::assertDispatched(ReservationStatusUpdated::class);
     }
 
 }

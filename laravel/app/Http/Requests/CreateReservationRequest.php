@@ -3,9 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Enums\PaymentStatusEnum;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Enum;
 
-class CreateReservationRequest
+class CreateReservationRequest extends FormRequest
 {
     public function authorize(): bool
     {

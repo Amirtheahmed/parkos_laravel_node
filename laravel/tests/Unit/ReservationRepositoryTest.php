@@ -160,11 +160,10 @@ class ReservationRepositoryTest extends TestCase
         }
     }
 
-    // Example of a Unit Test for the ReservationObserver
     public function test_dispatches_event_on_payment_status_change_to_paid()
     {
         $reservation = Mockery::mock(Reservation::class)->makePartial();
-        $reservation->payment_status = 'paid';
+        $reservation->payment_status = PaymentStatusEnum::PAID->value;
 
         $reservation->shouldReceive('isDirty')
             ->with('payment_status')

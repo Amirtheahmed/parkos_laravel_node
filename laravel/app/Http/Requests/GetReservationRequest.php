@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
-class GetReservationRequest
+use Illuminate\Foundation\Http\FormRequest;
+
+class GetReservationRequest extends FormRequest
 {
     public function authorize(): bool
     {
